@@ -1,0 +1,34 @@
+# Build outputs
+build/
+target/
+.gradle/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Test files
+src/test/
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# YAML job files (will be uploaded via API)
+*.yaml
+*.yml
+
+# Logs
+*.log
