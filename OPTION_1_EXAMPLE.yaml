@@ -1,0 +1,60 @@
+# This is what Option 1 would look like (NOT YET IMPLEMENTED)
+# This shows what's possible with the future upgrade
+
+connection:
+  jdbc: "jdbc:mysql://localhost:3306/openmrs"
+  username: "openmrs"
+  password: "openmrs"
+
+sourceTable: "encounter"
+
+lookupTables:
+  - "obs"
+  - "person_name"
+
+sink:
+  jdbc: "jdbc:mysql://localhost:3308/flattened"
+  username: "root"
+  password: "rootpass"
+  table: "vitals_with_full_name"
+  primaryKey:
+    - "encounter_id"
+  columns:
+    - name: "encounter_id"
+      type: "INT"
+    - name: "patient_id"
+      type: "INT"
+    - name: "patient_full_name"    # Single concatenated field
+      type: "STRING"
+    - name: "systolic_bp"
+      type: "DOUBLE"
+    - name: "total_observations"   # Aggregated count
+      type: "BIGINT"
+
+# OPTION 1 Field Mappings (Future feature)
+fieldMappings:
+  passthroughFields:
+    - "encounter_id"
+    - "patient_id"
+
+  conceptMappings:
+    - column: "systolic_bp"
+      conceptId: 2100
+      valueType: "value_numeric"
+
+  # OPTION 1 FEATURE: Advanced lookup with expressions
+  lookupMappings:
+    - column: "patient_full_name"
+      lookupTable: "person_name"
+      joinOn: "e.patient_id = person_name.person_id"
+      selectField: "CONCAT(person_name.given_name, ' ', person_name.family_name)"
+      # Can use any SQL expression here
+
+  # OPTION 1 FEATURE: Aggregations
+  aggregateMappings:
+    - column: "total_observations"
+      lookupTable: "obs"
+      joinOn: "e.encounter_id = obs.encounter_id"
+      aggregation: "COUNT"
+      selectField: "obs.obs_id"
+      filter: "obs.voided = false"

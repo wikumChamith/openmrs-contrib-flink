@@ -1,6 +1,7 @@
 package com.openmrs.service;
 
 import com.openmrs.model.Job;
+import com.openmrs.model.TableColumn;
 import com.openmrs.repository.JobRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -23,6 +24,9 @@ public class JobStartupRunner implements ApplicationRunner {
 
     @Autowired
     private DDLGenerator ddlGenerator;
+
+    @Autowired
+    private FieldMappingSqlGenerator fieldMappingSqlGenerator;
 
     @Override
     @Transactional
@@ -89,8 +93,38 @@ public class JobStartupRunner implements ApplicationRunner {
 
         tEnv.executeSql(sinkDDL);
 
+        // Determine SQL to execute (manual SQL or generated from field mappings)
+        String transformationSql;
+        String insertSQL;
         String sinkTableName = job.getSink().getSinkTable() + "_sink";
-        String insertSQL = "INSERT INTO " + sinkTableName + " " + job.getSql();
+
+        if (job.getSql() != null && !job.getSql().trim().isEmpty()) {
+            // Manual SQL mode
+            transformationSql = job.getSql();
+            log.debug("Restoring job with manual SQL");
+            insertSQL = "INSERT INTO " + sinkTableName + " " + transformationSql;
+        } else if (job.getFieldMappings() != null) {
+            // Field mappings mode - validate and generate SQL
+            fieldMappingSqlGenerator.validate(job);
+            transformationSql = fieldMappingSqlGenerator.generateSql(job);
+            log.debug("Restoring job with generated SQL from field mappings");
+
+            // Build explicit column list for INSERT
+            StringBuilder columnList = new StringBuilder("(");
+            List<TableColumn> sinkColumns = job.getSink().getSinkColumns();
+            for (int i = 0; i < sinkColumns.size(); i++) {
+                if (i > 0) columnList.append(", ");
+                columnList.append(sinkColumns.get(i).getName());
+            }
+            columnList.append(")");
+
+            insertSQL = "INSERT INTO " + sinkTableName + " " + columnList + " " + transformationSql;
+        } else {
+            log.error("Job ID {} has neither sql nor fieldMappings - skipping restoration", job.getId());
+            throw new IllegalStateException("Job must have either sql or fieldMappings");
+        }
+
+        log.debug("Executing INSERT SQL for job restoration");
         tEnv.executeSql(insertSQL);
 
         log.info("Flink job started for source: {} -> sink: {}",

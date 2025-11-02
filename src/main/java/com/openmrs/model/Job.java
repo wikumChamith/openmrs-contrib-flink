@@ -28,4 +28,7 @@ public class Job {
     @Column(name = "query_sql", columnDefinition = "TEXT")
     @ToString.Include
     private String sql;
+
+    @Embedded
+    private FieldMappings fieldMappings;
 }

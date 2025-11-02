@@ -1,0 +1,80 @@
+connection:
+  jdbc: "jdbc:mysql://localhost:3306/openmrs"
+  username: "openmrs"
+  password: "openmrs"
+
+sourceTable: "encounter"
+
+# Include lookup tables for obs, location, and provider
+lookupTables:
+  - "obs"
+  - "location"
+  - "provider"
+
+sink:
+  jdbc: "jdbc:mysql://localhost:3308/flattened"
+  username: "root"
+  password: "rootpass"
+  table: "encounter_vitals_detailed"
+  primaryKey:
+    - "encounter_id"
+  columns:
+    - name: "encounter_id"
+      type: "INT"
+    - name: "patient_id"
+      type: "INT"
+    - name: "encounter_datetime"
+      type: "TIMESTAMP(3)"
+    - name: "systolic_bp"
+      type: "DOUBLE"
+    - name: "diastolic_bp"
+      type: "DOUBLE"
+    - name: "temperature_c"
+      type: "DOUBLE"
+    - name: "location_name"
+      type: "STRING"
+    - name: "provider_name"
+      type: "STRING"
+    - name: "uuid"
+      type: "STRING"
+
+# Field Mappings with concept pivots AND lookup table joins
+fieldMappings:
+  # Direct fields from encounter table
+  passthroughFields:
+    - "encounter_id"
+    - "patient_id"
+    - "encounter_datetime"
+    - "uuid"
+
+  # EAV concept mappings from obs table
+  conceptMappings:
+    - column: "systolic_bp"
+      conceptId: 2100
+      valueType: "value_numeric"
+
+    - column: "diastolic_bp"
+      conceptId: 2101
+      valueType: "value_numeric"
+
+    - column: "temperature_c"
+      conceptId: 2102
+      valueType: "value_numeric"
+
+  # Lookup table field mappings
+  # These generate LEFT JOINs: e.{joinField} = {table}.{joinField}
+  lookupFields:
+    - column: "location_name"
+      table: "location"
+      field: "name"
+      joinField: "location_id"
+
+    - column: "provider_name"
+      table: "provider"
+      field: "name"
+      joinField: "provider_id"
+
+  # Filters
+  filters:
+    - "encounter_type = 5"
+    - "voided = false"

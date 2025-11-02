@@ -1,9 +1,6 @@
 package com.openmrs.service;
 
-import com.openmrs.model.Job;
-import com.openmrs.model.SinkInfo;
-import com.openmrs.model.SourceInfo;
-import com.openmrs.model.TableColumn;
+import com.openmrs.model.*;
 import com.openmrs.repository.JobRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -25,6 +22,9 @@ public class FlinkJobService {
 
     @Autowired
     private DDLGenerator ddlGenerator;
+
+    @Autowired
+    private FieldMappingSqlGenerator fieldMappingSqlGenerator;
 
     /**
      * Registers a Flink job from YAML content
@@ -129,14 +129,90 @@ public class FlinkJobService {
             }
         }
 
-        if (data.containsKey("sql")) {
+        // Parse SQL or field mappings (mutually exclusive)
+        boolean hasSql = data.containsKey("sql");
+        boolean hasFieldMappings = data.containsKey("fieldMappings");
+
+        if (hasSql && hasFieldMappings) {
+            throw new IllegalArgumentException(
+                "Configuration cannot contain both 'sql' and 'fieldMappings'. " +
+                "Please use either manual SQL or field mappings, not both."
+            );
+        }
+
+        if (!hasSql && !hasFieldMappings) {
+            throw new IllegalArgumentException(
+                "Configuration must contain either 'sql' or 'fieldMappings'"
+            );
+        }
+
+        if (hasSql) {
             job.setSql((String) data.get("sql"));
+            log.info("Using manual SQL mode");
+        } else {
+            // Parse field mappings
+            Map<String, Object> fieldMappingsData = (Map<String, Object>) data.get("fieldMappings");
+            FieldMappings fieldMappings = parseFieldMappings(fieldMappingsData);
+            job.setFieldMappings(fieldMappings);
+            log.info("Using field mappings mode");
         }
 
         job.setSource(sourceInfo);
         job.setSink(sinkInfo);
 
         return job;
+    }
+
+    /**
+     * Parses field mappings section from YAML
+     */
+    private FieldMappings parseFieldMappings(Map<String, Object> data) {
+        FieldMappings fieldMappings = new FieldMappings();
+
+        // Parse passthrough fields
+        if (data.containsKey("passthroughFields")) {
+            fieldMappings.setPassthroughFields((List<String>) data.get("passthroughFields"));
+        }
+
+        // Parse concept mappings
+        if (data.containsKey("conceptMappings")) {
+            List<Map<String, Object>> conceptMappingsData = (List<Map<String, Object>>) data.get("conceptMappings");
+            List<ConceptMapping> conceptMappings = new ArrayList<>();
+            for (Map<String, Object> mappingData : conceptMappingsData) {
+                ConceptMapping mapping = new ConceptMapping();
+                mapping.setColumn((String) mappingData.get("column"));
+                mapping.setConceptId((Integer) mappingData.get("conceptId"));
+                mapping.setValueType((String) mappingData.get("valueType"));
+                conceptMappings.add(mapping);
+            }
+            fieldMappings.setConceptMappings(conceptMappings);
+        }
+
+        // Parse lookup fields
+        if (data.containsKey("lookupFields")) {
+            List<Map<String, Object>> lookupFieldsData = (List<Map<String, Object>>) data.get("lookupFields");
+            List<LookupField> lookupFields = new ArrayList<>();
+            for (Map<String, Object> lookupData : lookupFieldsData) {
+                LookupField lookup = new LookupField();
+                lookup.setColumn((String) lookupData.get("column"));
+                lookup.setTable((String) lookupData.get("table"));
+                lookup.setField((String) lookupData.get("field"));
+                lookup.setJoinField((String) lookupData.get("joinField"));
+                // Optional: different field name on lookup table side
+                if (lookupData.containsKey("lookupJoinField")) {
+                    lookup.setLookupJoinField((String) lookupData.get("lookupJoinField"));
+                }
+                lookupFields.add(lookup);
+            }
+            fieldMappings.setLookupFields(lookupFields);
+        }
+
+        // Parse filters
+        if (data.containsKey("filters")) {
+            fieldMappings.setFilters((List<String>) data.get("filters"));
+        }
+
+        return fieldMappings;
     }
 
     /**
@@ -161,9 +237,38 @@ public class FlinkJobService {
         log.info("Executing sink DDL");
         tEnv.executeSql(sinkDDL);
 
-        log.info("Executing transformation SQL");
+        // Determine SQL to execute (manual SQL or generated from field mappings)
+        String transformationSql;
+        String insertSQL;
         String sinkTableName = job.getSink().getSinkTable() + "_sink";
-        String insertSQL = "INSERT INTO " + sinkTableName + " " + job.getSql();
+
+        if (job.getSql() != null) {
+            // Manual SQL mode
+            transformationSql = job.getSql();
+            log.info("Using manual SQL");
+            insertSQL = "INSERT INTO " + sinkTableName + " " + transformationSql;
+        } else if (job.getFieldMappings() != null) {
+            // Field mappings mode - validate and generate SQL
+            fieldMappingSqlGenerator.validate(job);
+            transformationSql = fieldMappingSqlGenerator.generateSql(job);
+            log.info("Generated SQL from field mappings");
+            log.debug("Generated transformation SQL:\n{}", transformationSql);
+
+            // Build explicit column list for INSERT to avoid positional matching issues
+            StringBuilder columnList = new StringBuilder("(");
+            List<TableColumn> sinkColumns = job.getSink().getSinkColumns();
+            for (int i = 0; i < sinkColumns.size(); i++) {
+                if (i > 0) columnList.append(", ");
+                columnList.append(sinkColumns.get(i).getName());
+            }
+            columnList.append(")");
+
+            insertSQL = "INSERT INTO " + sinkTableName + " " + columnList + " " + transformationSql;
+        } else {
+            throw new IllegalStateException("Job must have either sql or fieldMappings");
+        }
+
+        log.info("Executing transformation SQL");
         log.debug("Insert SQL:\n{}", insertSQL);
         tEnv.executeSql(insertSQL);
 
