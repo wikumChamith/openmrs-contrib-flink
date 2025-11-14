@@ -2,6 +2,7 @@ package com.openmrs.service;
 
 import com.openmrs.model.*;
 import com.openmrs.repository.JobRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -15,16 +16,14 @@ import java.util.Map;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class FlinkJobService {
 
-    @Autowired
-    private JobRepository jobRepository;
+    private final JobRepository jobRepository;
 
-    @Autowired
-    private DDLGenerator ddlGenerator;
+    private final DDLGenerator ddlGenerator;
 
-    @Autowired
-    private FieldMappingSqlGenerator fieldMappingSqlGenerator;
+    private final FieldMappingSqlGenerator fieldMappingSqlGenerator;
 
     /**
      * Registers a Flink job from YAML content
@@ -129,7 +128,6 @@ public class FlinkJobService {
             }
         }
 
-        // Parse SQL or field mappings (mutually exclusive)
         boolean hasSql = data.containsKey("sql");
         boolean hasFieldMappings = data.containsKey("fieldMappings");
 
@@ -169,12 +167,10 @@ public class FlinkJobService {
     private FieldMappings parseFieldMappings(Map<String, Object> data) {
         FieldMappings fieldMappings = new FieldMappings();
 
-        // Parse passthrough fields
         if (data.containsKey("passthroughFields")) {
             fieldMappings.setPassthroughFields((List<String>) data.get("passthroughFields"));
         }
 
-        // Parse concept mappings
         if (data.containsKey("conceptMappings")) {
             List<Map<String, Object>> conceptMappingsData = (List<Map<String, Object>>) data.get("conceptMappings");
             List<ConceptMapping> conceptMappings = new ArrayList<>();
@@ -188,7 +184,6 @@ public class FlinkJobService {
             fieldMappings.setConceptMappings(conceptMappings);
         }
 
-        // Parse lookup fields
         if (data.containsKey("lookupFields")) {
             List<Map<String, Object>> lookupFieldsData = (List<Map<String, Object>>) data.get("lookupFields");
             List<LookupField> lookupFields = new ArrayList<>();
@@ -237,24 +232,20 @@ public class FlinkJobService {
         log.info("Executing sink DDL");
         tEnv.executeSql(sinkDDL);
 
-        // Determine SQL to execute (manual SQL or generated from field mappings)
         String transformationSql;
         String insertSQL;
         String sinkTableName = job.getSink().getSinkTable() + "_sink";
 
         if (job.getSql() != null) {
-            // Manual SQL mode
             transformationSql = job.getSql();
             log.info("Using manual SQL");
             insertSQL = "INSERT INTO " + sinkTableName + " " + transformationSql;
         } else if (job.getFieldMappings() != null) {
-            // Field mappings mode - validate and generate SQL
             fieldMappingSqlGenerator.validate(job);
             transformationSql = fieldMappingSqlGenerator.generateSql(job);
             log.info("Generated SQL from field mappings");
             log.debug("Generated transformation SQL:\n{}", transformationSql);
 
-            // Build explicit column list for INSERT to avoid positional matching issues
             StringBuilder columnList = new StringBuilder("(");
             List<TableColumn> sinkColumns = job.getSink().getSinkColumns();
             for (int i = 0; i < sinkColumns.size(); i++) {

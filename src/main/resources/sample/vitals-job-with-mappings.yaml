@@ -5,16 +5,14 @@ connection:
 
 sourceTable: "encounter"
 
-# Add person_name to lookup tables
 lookupTables:
   - "obs"
-  - "person_name"
 
 sink:
   jdbc: "jdbc:mysql://localhost:3308/flattened"
   username: "root"
   password: "rootpass"
-  table: "vitals_with_names"
+  table: "vitals"
   primaryKey:
     - "encounter_id"
   columns:
@@ -22,10 +20,6 @@ sink:
       type: "INT"
     - name: "patient_id"
       type: "INT"
-    - name: "patient_given_name"
-      type: "STRING"
-    - name: "patient_family_name"
-      type: "STRING"
     - name: "encounter_datetime"
       type: "TIMESTAMP(3)"
     - name: "systolic_bp"
@@ -34,20 +28,38 @@ sink:
       type: "DOUBLE"
     - name: "temperature_c"
       type: "DOUBLE"
+    - name: "height_cm"
+      type: "DOUBLE"
+    - name: "weight_kg"
+      type: "DOUBLE"
+    - name: "pulse"
+      type: "DOUBLE"
+    - name: "respiratory_rate"
+      type: "DOUBLE"
+    - name: "oxygen_saturation"
+      type: "DOUBLE"
     - name: "location_id"
       type: "INT"
+    - name: "visit_id"
+      type: "INT"
+    - name: "creator"
+      type: "INT"
+    - name: "date_created"
+      type: "TIMESTAMP(3)"
     - name: "voided"
       type: "BOOLEAN"
     - name: "uuid"
       type: "STRING"
 
-# Field Mappings with patient name lookup
 fieldMappings:
   passthroughFields:
     - "encounter_id"
     - "patient_id"
     - "encounter_datetime"
     - "location_id"
+    - "visit_id"
+    - "creator"
+    - "date_created"
     - "voided"
     - "uuid"
 
@@ -64,18 +76,25 @@ fieldMappings:
       conceptId: 2102
       valueType: "value_numeric"
 
-  lookupFields:
-    - column: "patient_given_name"
-      table: "person_name"
-      field: "given_name"
-      joinField: "patient_id"
-      lookupJoinField: "person_id"
+    - column: "height_cm"
+      conceptId: 2103
+      valueType: "value_numeric"
 
-    - column: "patient_family_name"
-      table: "person_name"
-      field: "family_name"
-      joinField: "patient_id"
-      lookupJoinField: "person_id"
+    - column: "weight_kg"
+      conceptId: 2104
+      valueType: "value_numeric"
+
+    - column: "pulse"
+      conceptId: 2105
+      valueType: "value_numeric"
+
+    - column: "respiratory_rate"
+      conceptId: 2107
+      valueType: "value_numeric"
+
+    - column: "oxygen_saturation"
+      conceptId: 2109
+      valueType: "value_numeric"
 
   filters:
     - "encounter_type = 5"

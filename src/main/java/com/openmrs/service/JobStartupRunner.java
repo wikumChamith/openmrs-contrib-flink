@@ -3,6 +3,7 @@ package com.openmrs.service;
 import com.openmrs.model.Job;
 import com.openmrs.model.TableColumn;
 import com.openmrs.repository.JobRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -17,20 +18,18 @@ import java.util.List;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class JobStartupRunner implements ApplicationRunner {
 
-    @Autowired
-    private JobRepository jobRepository;
+    private final JobRepository jobRepository;
 
-    @Autowired
-    private DDLGenerator ddlGenerator;
+    private final DDLGenerator ddlGenerator;
 
-    @Autowired
-    private FieldMappingSqlGenerator fieldMappingSqlGenerator;
+    private final FieldMappingSqlGenerator fieldMappingSqlGenerator;
 
     @Override
     @Transactional
-    public void run(ApplicationArguments args) throws Exception {
+    public void run(ApplicationArguments args) {
         log.info("=== Starting Job Startup Runner ===");
 
         List<Job> jobs = jobRepository.findAll();

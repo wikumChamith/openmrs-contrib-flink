@@ -1,0 +1,136 @@
+connection:
+  jdbc: "jdbc:mysql://localhost:3306/openmrs"
+  username: "openmrs"
+  password: "openmrs"
+
+sourceTable: "person"
+
+# Lookup tables for preferred patient name and address
+lookupTables:
+  - "person_name"
+  - "person_address"
+
+sink:
+  jdbc: "jdbc:mysql://localhost:3308/flattened"
+  username: "root"
+  password: "rootpass"
+  table: "patient_preferred"
+  primaryKey:
+    - "person_id"
+  columns:
+    # Person basic info
+    - name: "person_id"
+      type: "INT"
+    - name: "gender"
+      type: "STRING"
+    - name: "birthdate"
+      type: "DATE"
+    - name: "birthdate_estimated"
+      type: "BOOLEAN"
+    - name: "dead"
+      type: "BOOLEAN"
+    - name: "death_date"
+      type: "TIMESTAMP(3)"
+    - name: "creator"
+      type: "INT"
+    - name: "date_created"
+      type: "TIMESTAMP(3)"
+    - name: "voided"
+      type: "BOOLEAN"
+    - name: "uuid"
+      type: "STRING"
+
+    # Person name fields (preferred name only)
+    - name: "given_name"
+      type: "STRING"
+    - name: "middle_name"
+      type: "STRING"
+    - name: "family_name"
+      type: "STRING"
+    - name: "family_name2"
+      type: "STRING"
+
+    # Person address fields (preferred address only)
+    - name: "address1"
+      type: "STRING"
+    - name: "address2"
+      type: "STRING"
+    - name: "city_village"
+      type: "STRING"
+    - name: "state_province"
+      type: "STRING"
+    - name: "postal_code"
+      type: "STRING"
+    - name: "country"
+      type: "STRING"
+
+fieldMappings:
+  # Direct fields from person table
+  passthroughFields:
+    - "person_id"
+    - "gender"
+    - "birthdate"
+    - "birthdate_estimated"
+    - "dead"
+    - "death_date"
+    - "creator"
+    - "date_created"
+    - "voided"
+    - "uuid"
+
+  # Fields from person_name table (preferred name only)
+  lookupFields:
+    - column: "given_name"
+      table: "person_name"
+      field: "given_name"
+      joinField: "person_id"
+
+    - column: "middle_name"
+      table: "person_name"
+      field: "middle_name"
+      joinField: "person_id"
+
+    - column: "family_name"
+      table: "person_name"
+      field: "family_name"
+      joinField: "person_id"
+
+    - column: "family_name2"
+      table: "person_name"
+      field: "family_name2"
+      joinField: "person_id"
+
+    # Fields from person_address table (preferred address only)
+    - column: "address1"
+      table: "person_address"
+      field: "address1"
+      joinField: "person_id"
+
+    - column: "address2"
+      table: "person_address"
+      field: "address2"
+      joinField: "person_id"
+
+    - column: "city_village"
+      table: "person_address"
+      field: "city_village"
+      joinField: "person_id"
+
+    - column: "state_province"
+      table: "person_address"
+      field: "state_province"
+      joinField: "person_id"
+
+    - column: "postal_code"
+      table: "person_address"
+      field: "postal_code"
+      joinField: "person_id"
+
+    - column: "country"
+      table: "person_address"
+      field: "country"
+      joinField: "person_id"
+
+  # Filter for non-voided persons only
+  filters:
+    - "voided = false"

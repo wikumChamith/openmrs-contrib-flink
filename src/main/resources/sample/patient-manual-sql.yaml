@@ -1,0 +1,99 @@
+connection:
+  jdbc: "jdbc:mysql://localhost:3306/openmrs"
+  username: "openmrs"
+  password: "openmrs"
+
+sourceTable: "person"
+
+# Lookup tables
+lookupTables:
+  - "person_name"
+  - "person_address"
+
+sink:
+  jdbc: "jdbc:mysql://localhost:3308/flattened"
+  username: "root"
+  password: "rootpass"
+  table: "patient_complete"
+  primaryKey:
+    - "person_id"
+  columns:
+    # Person basic info
+    - name: "person_id"
+      type: "INT"
+    - name: "gender"
+      type: "STRING"
+    - name: "birthdate"
+      type: "DATE"
+    - name: "birthdate_estimated"
+      type: "BOOLEAN"
+    - name: "dead"
+      type: "BOOLEAN"
+    - name: "death_date"
+      type: "TIMESTAMP(3)"
+    - name: "creator"
+      type: "INT"
+    - name: "date_created"
+      type: "TIMESTAMP(3)"
+    - name: "voided"
+      type: "BOOLEAN"
+    - name: "uuid"
+      type: "STRING"
+
+    # Preferred person name
+    - name: "given_name"
+      type: "STRING"
+    - name: "middle_name"
+      type: "STRING"
+    - name: "family_name"
+      type: "STRING"
+    - name: "family_name2"
+      type: "STRING"
+
+    # Preferred person address
+    - name: "address1"
+      type: "STRING"
+    - name: "address2"
+      type: "STRING"
+    - name: "city_village"
+      type: "STRING"
+    - name: "state_province"
+      type: "STRING"
+    - name: "postal_code"
+      type: "STRING"
+    - name: "country"
+      type: "STRING"
+
+# Manual SQL with preferred name and address filtering
+sql: |
+  SELECT
+    p.person_id,
+    p.gender,
+    p.birthdate,
+    p.birthdate_estimated,
+    p.dead,
+    p.death_date,
+    p.creator,
+    p.date_created,
+    p.voided,
+    p.uuid,
+    pn.given_name,
+    pn.middle_name,
+    pn.family_name,
+    pn.family_name2,
+    pa.address1,
+    pa.address2,
+    pa.city_village,
+    pa.state_province,
+    pa.postal_code,
+    pa.country
+  FROM person_source p
+  LEFT JOIN lkp_person_name pn
+    ON p.person_id = pn.person_id
+    AND pn.preferred = true
+    AND pn.voided = false
+  LEFT JOIN lkp_person_address pa
+    ON p.person_id = pa.person_id
+    AND pa.preferred = true
+    AND pa.voided = false
+  WHERE p.voided = false

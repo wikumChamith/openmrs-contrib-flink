@@ -1,0 +1,81 @@
+connection:
+  jdbc: "jdbc:mysql://localhost:3306/openmrs"
+  username: "openmrs"
+  password: "openmrs"
+
+sourceTable: "encounter"
+
+lookupTables:
+  - "obs"
+  - "person_name"
+
+sink:
+  jdbc: "jdbc:mysql://localhost:3308/flattened"
+  username: "root"
+  password: "rootpass"
+  table: "vitals_with_names"
+  primaryKey:
+    - "encounter_id"
+  columns:
+    - name: "encounter_id"
+      type: "INT"
+    - name: "patient_id"
+      type: "INT"
+    - name: "patient_given_name"
+      type: "STRING"
+    - name: "patient_family_name"
+      type: "STRING"
+    - name: "encounter_datetime"
+      type: "TIMESTAMP(3)"
+    - name: "systolic_bp"
+      type: "DOUBLE"
+    - name: "diastolic_bp"
+      type: "DOUBLE"
+    - name: "temperature_c"
+      type: "DOUBLE"
+    - name: "location_id"
+      type: "INT"
+    - name: "voided"
+      type: "BOOLEAN"
+    - name: "uuid"
+      type: "STRING"
+
+# Field Mappings with patient name lookup
+fieldMappings:
+  passthroughFields:
+    - "encounter_id"
+    - "patient_id"
+    - "encounter_datetime"
+    - "location_id"
+    - "voided"
+    - "uuid"
+
+  conceptMappings:
+    - column: "systolic_bp"
+      conceptId: 2100
+      valueType: "value_numeric"
+
+    - column: "diastolic_bp"
+      conceptId: 2101
+      valueType: "value_numeric"
+
+    - column: "temperature_c"
+      conceptId: 2102
+      valueType: "value_numeric"
+
+  lookupFields:
+    - column: "patient_given_name"
+      table: "person_name"
+      field: "given_name"
+      joinField: "patient_id"
+      lookupJoinField: "person_id"
+
+    - column: "patient_family_name"
+      table: "person_name"
+      field: "family_name"
+      joinField: "patient_id"
+      lookupJoinField: "person_id"
+
+  filters:
+    - "encounter_type = 5"
+    - "voided = false"

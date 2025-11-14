@@ -112,7 +112,6 @@ public class DDLGenerator {
         StringBuilder ddl = new StringBuilder();
         ddl.append("CREATE TABLE ").append(sink.getSinkTable()).append("_sink (\n");
 
-        // Add columns
         boolean first = true;
         for (TableColumn column : sink.getSinkColumns()) {
             if (!first) ddl.append(",\n");
@@ -120,7 +119,6 @@ public class DDLGenerator {
             ddl.append("    ").append(column.getName()).append(" ").append(column.getType());
         }
 
-        // Add primary key constraint
         if (sink.getSinkPrimaryKey() != null && !sink.getSinkPrimaryKey().isEmpty()) {
             ddl.append(",\n    PRIMARY KEY (");
             ddl.append(String.join(", ", sink.getSinkPrimaryKey()));
@@ -137,7 +135,7 @@ public class DDLGenerator {
         ddl.append(")");
 
         System.out.println("=== GENERATED SINK DDL ===");
-        System.out.println(ddl.toString());
+        System.out.println(ddl);
         System.out.println("=========================");
 
         return ddl.toString();
@@ -229,7 +227,7 @@ public class DDLGenerator {
         ddl.append("\n)");
 
         System.out.println("=== GENERATED SOURCE DDL ===");
-        System.out.println(ddl.toString());
+        System.out.println(ddl);
         System.out.println("============================");
 
         return ddl.toString();

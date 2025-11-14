@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Generates Flink SQL queries from field mapping configurations.
@@ -37,20 +36,15 @@ public class FieldMappingSqlGenerator {
 
         StringBuilder sql = new StringBuilder();
 
-        // SELECT clause - generate in the order of sink columns
         sql.append("SELECT\n");
         appendSelectFieldsInSinkOrder(sql, mappings, sink, sourceTableAlias, obsTableAlias);
 
-        // FROM clause
         sql.append("FROM ").append(source.getSourceTable()).append("_source ").append(sourceTableAlias).append("\n");
 
-        // JOIN clauses
         appendJoins(sql, mappings, source, sourceTableAlias, obsTableAlias);
 
-        // WHERE clause
-        appendWhereClause(sql, mappings, sourceTableAlias, obsTableAlias);
+        appendWhereClause(sql, mappings, sourceTableAlias);
 
-        // GROUP BY clause
         appendGroupBy(sql, mappings, sourceTableAlias);
 
         return sql.toString();
@@ -67,7 +61,6 @@ public class FieldMappingSqlGenerator {
             throw new IllegalArgumentException("Sink columns cannot be empty");
         }
 
-        // Build lookup maps for quick access
         Set<String> passthroughFields = new HashSet<>();
         if (mappings.getPassthroughFields() != null) {
             passthroughFields.addAll(mappings.getPassthroughFields());
@@ -87,19 +80,15 @@ public class FieldMappingSqlGenerator {
             }
         }
 
-        // Generate SELECT fields in sink column order
         boolean first = true;
         for (TableColumn sinkColumn : sinkColumns) {
             String columnName = sinkColumn.getName();
 
             if (!first) sql.append(",\n");
 
-            // Check what type of mapping this column has
             if (passthroughFields.contains(columnName)) {
-                // Passthrough field
                 sql.append("  ").append(sourceTableAlias).append(".").append(columnName);
             } else if (conceptMap.containsKey(columnName)) {
-                // Concept mapping
                 ConceptMapping mapping = conceptMap.get(columnName);
                 sql.append("  MAX(CASE WHEN ")
                    .append(obsTableAlias).append(".concept_id = ")
@@ -109,7 +98,6 @@ public class FieldMappingSqlGenerator {
                    .append(" END) as ")
                    .append(mapping.getColumn());
             } else if (lookupMap.containsKey(columnName)) {
-                // Lookup field
                 LookupField lookup = lookupMap.get(columnName);
                 sql.append("  ").append(lookup.getTable()).append(".").append(lookup.getField())
                    .append(" as ").append(lookup.getColumn());
@@ -131,9 +119,7 @@ public class FieldMappingSqlGenerator {
      */
     private void appendJoins(StringBuilder sql, FieldMappings mappings, SourceInfo source,
                             String sourceTableAlias, String obsTableAlias) {
-        // Join obs table if there are concept mappings
         if (mappings.getConceptMappings() != null && !mappings.getConceptMappings().isEmpty()) {
-            // Check if obs is in lookup tables
             boolean obsInLookup = source.getSourceLookupTables() != null &&
                                  source.getSourceLookupTables().contains("obs");
 
@@ -150,20 +136,16 @@ public class FieldMappingSqlGenerator {
             sql.append("  AND ").append(obsTableAlias).append(".voided = false\n");
         }
 
-        // Join lookup tables - each table only once, even if multiple fields are selected from it
         if (mappings.getLookupFields() != null && !mappings.getLookupFields().isEmpty()) {
-            // Track which tables we've already joined to avoid duplicates
             Set<String> joinedTables = new HashSet<>();
 
             for (LookupField lookup : mappings.getLookupFields()) {
                 String tableName = lookup.getTable();
 
-                // Skip if we've already joined this table
                 if (joinedTables.contains(tableName)) {
                     continue;
                 }
 
-                // Verify lookup table is in sourceLookupTables
                 boolean tableInLookup = source.getSourceLookupTables() != null &&
                                        source.getSourceLookupTables().contains(tableName);
 
@@ -176,7 +158,6 @@ public class FieldMappingSqlGenerator {
 
                 sql.append("LEFT JOIN lkp_").append(tableName).append(" ").append(tableName).append("\n");
 
-                // Use lookupJoinField if specified, otherwise use joinField for both sides
                 String lookupSideField = (lookup.getLookupJoinField() != null && !lookup.getLookupJoinField().trim().isEmpty())
                     ? lookup.getLookupJoinField()
                     : lookup.getJoinField();
@@ -193,13 +174,12 @@ public class FieldMappingSqlGenerator {
      * Appends WHERE clause with filters
      */
     private void appendWhereClause(StringBuilder sql, FieldMappings mappings,
-                                   String sourceTableAlias, String obsTableAlias) {
+                                   String sourceTableAlias) {
         if (mappings.getFilters() != null && !mappings.getFilters().isEmpty()) {
             sql.append("WHERE ");
             boolean first = true;
             for (String filter : mappings.getFilters()) {
                 if (!first) sql.append("\n  AND ");
-                // Prefix filter with source table alias if it doesn't already have a table reference
                 if (!filter.contains(".")) {
                     sql.append(sourceTableAlias).append(".");
                 }
@@ -215,7 +195,6 @@ public class FieldMappingSqlGenerator {
      * Groups by all passthrough fields and lookup fields (but not concept mappings which are aggregated)
      */
     private void appendGroupBy(StringBuilder sql, FieldMappings mappings, String sourceTableAlias) {
-        // Only need GROUP BY if there are concept mappings (which use MAX aggregation)
         if (mappings.getConceptMappings() == null || mappings.getConceptMappings().isEmpty()) {
             return;
         }
@@ -223,7 +202,6 @@ public class FieldMappingSqlGenerator {
         sql.append("GROUP BY\n");
         boolean first = true;
 
-        // Group by passthrough fields
         if (mappings.getPassthroughFields() != null && !mappings.getPassthroughFields().isEmpty()) {
             for (String field : mappings.getPassthroughFields()) {
                 if (!first) sql.append(",\n");
@@ -232,7 +210,6 @@ public class FieldMappingSqlGenerator {
             }
         }
 
-        // Group by lookup fields
         if (mappings.getLookupFields() != null && !mappings.getLookupFields().isEmpty()) {
             for (LookupField lookup : mappings.getLookupFields()) {
                 if (!first) sql.append(",\n");
@@ -250,7 +227,6 @@ public class FieldMappingSqlGenerator {
      */
     private String getSourcePrimaryKey(SourceInfo source) {
         String tableName = source.getSourceTable();
-        // Common OpenMRS pattern: table_id (e.g., encounter_id, visit_id, patient_id)
         return tableName + "_id";
     }
 
@@ -263,7 +239,6 @@ public class FieldMappingSqlGenerator {
             throw new IllegalArgumentException("Field mappings cannot be null");
         }
 
-        // At least one mapping type must be present
         boolean hasPassthrough = mappings.getPassthroughFields() != null && !mappings.getPassthroughFields().isEmpty();
         boolean hasConcepts = mappings.getConceptMappings() != null && !mappings.getConceptMappings().isEmpty();
         boolean hasLookups = mappings.getLookupFields() != null && !mappings.getLookupFields().isEmpty();
@@ -274,7 +249,6 @@ public class FieldMappingSqlGenerator {
             );
         }
 
-        // Validate concept mappings
         if (hasConcepts) {
             for (ConceptMapping mapping : mappings.getConceptMappings()) {
                 if (mapping.getColumn() == null || mapping.getColumn().trim().isEmpty()) {
@@ -298,7 +272,6 @@ public class FieldMappingSqlGenerator {
             }
         }
 
-        // Validate lookup fields
         if (hasLookups) {
             for (LookupField lookup : mappings.getLookupFields()) {
                 if (lookup.getColumn() == null || lookup.getColumn().trim().isEmpty()) {
@@ -316,7 +289,6 @@ public class FieldMappingSqlGenerator {
             }
         }
 
-        // Check for duplicate column names across all mapping types
         Set<String> columnNames = new HashSet<>();
 
         if (hasPassthrough) {
