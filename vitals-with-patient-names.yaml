@@ -64,15 +64,12 @@ fieldMappings:
       conceptId: 2102
       valueType: "value_numeric"
 
-  # NEW: Lookup patient name fields
-  # In OpenMRS: encounter.patient_id joins to person_name.person_id
   lookupFields:
     - column: "patient_given_name"
       table: "person_name"
       field: "given_name"
-      joinField: "patient_id"         # Field on encounter table
-      lookupJoinField: "person_id"    # Field on person_name table
-      # Generates: e.patient_id = person_name.person_id
+      joinField: "patient_id"
+      lookupJoinField: "person_id"
 
     - column: "patient_family_name"
       table: "person_name"
