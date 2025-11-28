@@ -28,4 +28,7 @@ public class SourceInfo {
     @CollectionTable(name = "source_lookup_table", joinColumns = @JoinColumn(name = "job_id"))
     @Column(name = "table_name")
     private List<String> sourceLookupTables;
+
+    @Column(name = "scan_startup_mode")
+    private String scanStartupMode;
 }

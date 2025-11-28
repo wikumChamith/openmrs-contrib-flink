@@ -94,6 +94,10 @@ public class FlinkJobService {
             sourceInfo.setSourceJdbc(connection.get("jdbc"));
             sourceInfo.setSourceUsername(connection.get("username"));
             sourceInfo.setSourcePassword(connection.get("password"));
+            // Default to 'latest-offset' if not specified
+            sourceInfo.setScanStartupMode(
+                connection.getOrDefault("scanStartupMode", "latest-offset")
+            );
         }
 
         if (data.containsKey("sourceTable")) {

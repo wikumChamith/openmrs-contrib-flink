@@ -31,7 +31,7 @@ public class DDLGenerator {
             List<ColumnInfo> columns = getTableColumns(conn, databaseName, tableName);
             String primaryKeyColumn = getPrimaryKeyColumn(conn, databaseName, tableName);
 
-            return buildSourceDDL(tableName, columns, primaryKeyColumn, jdbcUrl, username, password);
+            return buildSourceDDL(source, tableName, columns, primaryKeyColumn, jdbcUrl, username, password);
         }
     }
 
@@ -194,7 +194,7 @@ public class DDLGenerator {
     /**
      * Builds the source table DDL with MySQL CDC connector
      */
-    private String buildSourceDDL(String tableName, List<ColumnInfo> columns,
+    private String buildSourceDDL(SourceInfo source, String tableName, List<ColumnInfo> columns,
                                    String primaryKeyColumn, String jdbcUrl,
                                    String username, String password) {
         StringBuilder ddl = new StringBuilder();
@@ -216,8 +216,8 @@ public class DDLGenerator {
         ddl.append("    'database-name' = '").append(extractDatabaseFromJdbc(jdbcUrl)).append("',\n");
         ddl.append("    'table-name' = '").append(tableName).append("',\n");
         ddl.append("    'username' = '").append(username).append("',\n");
-        ddl.append("    'scan.startup.mode' = '").append("latest-offset").append("',\n");
         ddl.append("    'password' = '").append(password).append("',\n");
+        ddl.append("    'scan.startup.mode' = '").append(source.getScanStartupMode()).append("',\n");
         ddl.append("    'server-time-zone' = 'UTC'");
 
         if (primaryKeyColumn != null) {
