@@ -3,6 +3,7 @@ package com.openmrs.controller;
 import com.openmrs.model.Job;
 import com.openmrs.repository.JobRepository;
 import com.openmrs.service.FlinkJobService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -19,13 +20,12 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/jobs")
+@RequiredArgsConstructor
 public class JobController {
 
-    @Autowired
-    private FlinkJobService flinkJobService;
+    private final FlinkJobService flinkJobService;
 
-    @Autowired
-    private JobRepository jobRepository;
+    private final JobRepository jobRepository;
 
     /**
      * Get all jobs
@@ -64,7 +64,6 @@ public class JobController {
             }
 
             String yamlContent = new String(file.getBytes(), StandardCharsets.UTF_8);
-            log.info("Received YAML file: {}, size: {} bytes", filename, file.getSize());
 
             Job job = flinkJobService.registerJobFromYaml(yamlContent);
 

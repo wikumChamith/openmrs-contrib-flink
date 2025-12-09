@@ -62,7 +62,6 @@ services:
       - db-data:/var/lib/mysql
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
-  # Target/Flattened Database (where CDC data lands)
   target-db:
     image: mariadb:10.11.7
     restart: "unless-stopped"
@@ -80,7 +79,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  # Application database - stores Job metadata
+
   app-db:
     image: mysql:8.0
     container_name: openmrs-flink-app-db

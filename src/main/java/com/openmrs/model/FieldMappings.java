@@ -12,9 +12,6 @@ import java.util.List;
  * Provides an alternative to manual SQL by allowing users to define
  * field mappings declaratively in YAML.
  *
- * This design is extensible - additional mapping types can be added
- * in the future (e.g., aggregateMappings, lookupMappings) without
- * breaking existing configurations.
  */
 @Data
 @NoArgsConstructor

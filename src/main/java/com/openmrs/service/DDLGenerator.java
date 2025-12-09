@@ -83,7 +83,6 @@ public class DDLGenerator {
         try (Connection conn = DriverManager.getConnection(jdbcUrl, username, password);
              Statement stmt = conn.createStatement()) {
             stmt.executeUpdate(createTableSQL.toString());
-            System.out.println("Physical sink table created successfully: " + tableName);
         }
     }
 
@@ -133,11 +132,6 @@ public class DDLGenerator {
         ddl.append("    'username' = '").append(sink.getSinkUsername()).append("',\n");
         ddl.append("    'password' = '").append(sink.getSinkPassword()).append("'\n");
         ddl.append(")");
-
-        System.out.println("=== GENERATED SINK DDL ===");
-        System.out.println(ddl);
-        System.out.println("=========================");
-
         return ddl.toString();
     }
 
@@ -225,10 +219,6 @@ public class DDLGenerator {
         }
 
         ddl.append("\n)");
-
-        System.out.println("=== GENERATED SOURCE DDL ===");
-        System.out.println(ddl);
-        System.out.println("============================");
 
         return ddl.toString();
     }
