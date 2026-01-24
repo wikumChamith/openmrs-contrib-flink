@@ -10,9 +10,9 @@ lookupTables:
   - "obs"
 
 sink:
-  jdbc: "jdbc:mysql://localhost:3308/flattened"
-  username: "root"
-  password: "rootpass"
+  jdbc: "jdbc:mysql://localhost:3306/flattened"
+  username: "openmrs"
+  password: "openmrs"
   table: "vitals"
   primaryKey:
     - "encounter_id"

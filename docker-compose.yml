@@ -1,6 +1,6 @@
 services:
   gateway:
-    image: openmrs/openmrs-reference-application-3-gateway:3.5.0
+    image: openmrs/openmrs-reference-application-3-gateway:nightly
     restart: "unless-stopped"
     depends_on:
       - frontend
@@ -9,7 +9,7 @@ services:
       - "80:80"
 
   frontend:
-    image: openmrs/openmrs-reference-application-3-frontend:3.5.0
+    image: openmrs/openmrs-reference-application-3-frontend:nightly
     restart: "unless-stopped"
     environment:
       SPA_PATH: /openmrs/spa
@@ -23,7 +23,7 @@ services:
       - backend
 
   backend:
-    image: openmrs/openmrs-reference-application-3-backend:3.5.0
+    image: openmrs/openmrs-reference-application-3-backend:nightly
     restart: "unless-stopped"
     depends_on:
       - db
@@ -41,7 +41,7 @@ services:
     volumes:
       - openmrs-data:/openmrs/data
 
-  # MariaDB (OpenMRS Source Database with CDC enabled)
+  # MariaDB (OpenMRS source + flattened databases, CDC enabled)
   db:
     image: mariadb:10.11.7
     restart: "unless-stopped"
@@ -62,24 +62,6 @@ services:
       - db-data:/var/lib/mysql
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
-  target-db:
-    image: mariadb:10.11.7
-    restart: "unless-stopped"
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpass
-      MYSQL_DATABASE: flattened
-      MYSQL_USER: flink_user
-      MYSQL_PASSWORD: flink_pass
-    ports:
-      - "3308:3306"
-    volumes:
-      - target-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   app-db:
     image: mysql:8.0
     container_name: openmrs-flink-app-db
@@ -98,8 +80,20 @@ services:
       timeout: 5s
       retries: 5
 
+  flink-app:
+    build: .
+    restart: "unless-stopped"
+    depends_on:
+      app-db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://app-db:3306/openmrs_flink
+      SPRING_DATASOURCE_USERNAME: flink_user
+      SPRING_DATASOURCE_PASSWORD: flink_pass
+    ports:
+      - "8081:8081"
+
 volumes:
   openmrs-data: ~
   db-data: ~
-  target-db-data: ~
   app-db-data: ~
