@@ -10,6 +10,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.yaml.snakeyaml.Yaml;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +39,8 @@ public class FlinkJobService {
 
         Job job = parseYaml(yamlContent);
         log.info("Parsed YAML successfully for table: {}", job.getSource().getSourceTable());
+
+        resolveConceptUuids(job);
 
         String sinkTable = job.getSink().getSinkTable();
         List<Job> existingJobs = jobRepository.findBySink_SinkTable(sinkTable);
@@ -182,6 +189,7 @@ public class FlinkJobService {
                 ConceptMapping mapping = new ConceptMapping();
                 mapping.setColumn((String) mappingData.get("column"));
                 mapping.setConceptId((Integer) mappingData.get("conceptId"));
+                mapping.setConceptUuid((String) mappingData.get("conceptUuid"));
                 mapping.setValueType((String) mappingData.get("valueType"));
                 conceptMappings.add(mapping);
             }
@@ -212,6 +220,68 @@ public class FlinkJobService {
         }
 
         return fieldMappings;
+    }
+
+    /**
+     * Resolves conceptUuid values to conceptId by querying the source database.
+     * Only applies when fieldMappings with conceptMappings using conceptUuid are present.
+     */
+    private void resolveConceptUuids(Job job) {
+        if (job.getFieldMappings() == null || job.getFieldMappings().getConceptMappings() == null) {
+            return;
+        }
+
+        // Pre-validate: reject mappings that specify both conceptId and conceptUuid
+        for (ConceptMapping mapping : job.getFieldMappings().getConceptMappings()) {
+            boolean hasId = mapping.getConceptId() != null;
+            boolean hasUuid = mapping.getConceptUuid() != null && !mapping.getConceptUuid().trim().isEmpty();
+            if (hasId && hasUuid) {
+                throw new IllegalArgumentException(
+                    "Concept mapping for column '" + mapping.getColumn() +
+                    "' specifies both conceptId and conceptUuid. Please use only one."
+                );
+            }
+        }
+
+        List<ConceptMapping> mappingsToResolve = job.getFieldMappings().getConceptMappings().stream()
+            .filter(m -> m.getConceptUuid() != null && !m.getConceptUuid().trim().isEmpty())
+            .toList();
+
+        if (mappingsToResolve.isEmpty()) {
+            return;
+        }
+
+        SourceInfo source = job.getSource();
+        String jdbcUrl = source.getSourceJdbc();
+        String username = source.getSourceUsername();
+        String password = source.getSourcePassword();
+
+        log.info("Resolving {} conceptUuid(s) against source database", mappingsToResolve.size());
+
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, username, password)) {
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT concept_id FROM concept WHERE uuid = ?")) {
+                for (ConceptMapping mapping : mappingsToResolve) {
+                    stmt.setString(1, mapping.getConceptUuid().trim());
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (rs.next()) {
+                            int conceptId = rs.getInt("concept_id");
+                            mapping.setConceptId(conceptId);
+                            log.debug("Resolved conceptUuid '{}' → conceptId {} for column '{}'",
+                                mapping.getConceptUuid(), conceptId, mapping.getColumn());
+                            mapping.setConceptUuid(null);
+                        } else {
+                            throw new IllegalArgumentException(
+                                "No concept found for UUID '" + mapping.getConceptUuid() +
+                                "' (column: " + mapping.getColumn() + ")"
+                            );
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to resolve concept UUIDs from source database: " + e.getMessage(), e);
+        }
     }
 
     /**

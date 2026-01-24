@@ -1,0 +1,84 @@
+connection:
+  jdbc: "jdbc:mysql://db:3306/openmrs"
+  username: "openmrs"
+  password: "openmrs"
+
+sourceTable: "encounter"
+
+lookupTables:
+  - "obs"
+
+sink:
+  jdbc: "jdbc:mysql://db:3306/flattened"
+  username: "openmrs"
+  password: "openmrs"
+  table: "vitals_uuid"
+  primaryKey:
+    - "encounter_id"
+  columns:
+    - name: "encounter_id"
+      type: "INT"
+    - name: "patient_id"
+      type: "INT"
+    - name: "encounter_datetime"
+      type: "TIMESTAMP(3)"
+    - name: "systolic_bp"
+      type: "DOUBLE"
+    - name: "diastolic_bp"
+      type: "DOUBLE"
+    - name: "temperature_c"
+      type: "DOUBLE"
+    - name: "height_cm"
+      type: "DOUBLE"
+    - name: "weight_kg"
+      type: "DOUBLE"
+    - name: "pulse"
+      type: "DOUBLE"
+    - name: "respiratory_rate"
+      type: "DOUBLE"
+    - name: "oxygen_saturation"
+      type: "DOUBLE"
+
+fieldMappings:
+  passthroughFields:
+    - "encounter_id"
+    - "patient_id"
+    - "encounter_datetime"
+
+  # Uses conceptUuid instead of conceptId — resolved at job registration time
+  conceptMappings:
+    - column: "systolic_bp"
+      conceptUuid: "5085AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      valueType: "value_numeric"
+
+    - column: "diastolic_bp"
+      conceptUuid: "5086AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      valueType: "value_numeric"
+
+    - column: "temperature_c"
+      conceptUuid: "5088AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      valueType: "value_numeric"
+
+    - column: "height_cm"
+      conceptUuid: "5090AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      valueType: "value_numeric"
+
+    - column: "weight_kg"
+      conceptUuid: "5089AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      valueType: "value_numeric"
+
+    - column: "pulse"
+      conceptUuid: "5087AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      valueType: "value_numeric"
+
+    - column: "respiratory_rate"
+      conceptUuid: "5242AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      valueType: "value_numeric"
+
+    - column: "oxygen_saturation"
+      conceptUuid: "5092AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      valueType: "value_numeric"
+
+  filters:
+    - "encounter_type = 5"
+    - "voided = false"

@@ -1,5 +1,5 @@
 connection:
-  jdbc: "jdbc:mysql://localhost:3306/openmrs"
+  jdbc: "jdbc:mysql://db:3306/openmrs"
   username: "openmrs"
   password: "openmrs"
 
@@ -10,7 +10,7 @@ lookupTables:
   - "obs"
 
 sink:
-  jdbc: "jdbc:mysql://localhost:3306/flattened"
+  jdbc: "jdbc:mysql://db:3306/flattened"
   username: "openmrs"
   password: "openmrs"
   table: "vitals"

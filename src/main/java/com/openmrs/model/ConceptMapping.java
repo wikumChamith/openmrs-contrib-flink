@@ -28,6 +28,13 @@ public class ConceptMapping {
     private Integer conceptId;
 
     /**
+     * OpenMRS concept UUID — resolved to conceptId at job registration time.
+     * Users may provide either conceptId or conceptUuid, but not both.
+     */
+    @Column(name = "concept_uuid")
+    private String conceptUuid;
+
+    /**
      * Which value column to use from obs table
      * (e.g., "value_numeric", "value_text", "value_datetime", "value_coded")
      */

@@ -254,9 +254,14 @@ public class FieldMappingSqlGenerator {
                 if (mapping.getColumn() == null || mapping.getColumn().trim().isEmpty()) {
                     throw new IllegalArgumentException("Concept mapping column name cannot be empty");
                 }
+
                 if (mapping.getConceptId() == null) {
-                    throw new IllegalArgumentException("Concept mapping conceptId cannot be null for column: " + mapping.getColumn());
+                    throw new IllegalArgumentException(
+                        "Concept mapping for column '" + mapping.getColumn() +
+                        "' has no resolved conceptId. Provide either conceptId or conceptUuid."
+                    );
                 }
+
                 if (mapping.getValueType() == null || mapping.getValueType().trim().isEmpty()) {
                     throw new IllegalArgumentException("Concept mapping valueType cannot be empty for column: " + mapping.getColumn());
                 }
