@@ -1,26 +1,41 @@
 connection:
-  jdbc: "jdbc:mysql://localhost:3306/openmrs"
+  jdbc: "jdbc:mysql://db:3306/openmrs"
   username: "openmrs"
   password: "openmrs"
 
 sourceTable: "person"
 
-# Lookup tables for preferred patient name and address
+# Lookup tables for patient name and address
 lookupTables:
   - "person_name"
   - "person_address"
 
 sink:
-  jdbc: "jdbc:mysql://localhost:3306/flattened"
+  jdbc: "jdbc:mysql://db:3306/flattened"
   username: "openmrs"
   password: "openmrs"
-  table: "patient_preferred"
+  table: "patient_flattened"
   primaryKey:
     - "person_id"
   columns:
     # Person basic info
     - name: "person_id"
       type: "INT"
+
+    - name: "given_name"
+      type: "STRING"
+    - name: "middle_name"
+      type: "STRING"
+    - name: "family_name"
+      type: "STRING"
+    - name: "family_name2"
+      type: "STRING"
+    - name: "prefix"
+      type: "STRING"
+    - name: "suffix"
+      type: "STRING"
+
+
     - name: "gender"
       type: "STRING"
     - name: "birthdate"
@@ -31,6 +46,8 @@ sink:
       type: "BOOLEAN"
     - name: "death_date"
       type: "TIMESTAMP(3)"
+    - name: "cause_of_death"
+      type: "INT"
     - name: "creator"
       type: "INT"
     - name: "date_created"
@@ -40,20 +57,12 @@ sink:
     - name: "uuid"
       type: "STRING"
 
-    # Person name fields (preferred name only)
-    - name: "given_name"
-      type: "STRING"
-    - name: "middle_name"
-      type: "STRING"
-    - name: "family_name"
-      type: "STRING"
-    - name: "family_name2"
-      type: "STRING"
-
-    # Person address fields (preferred address only)
+    # Person address fields
     - name: "address1"
       type: "STRING"
     - name: "address2"
+      type: "STRING"
+    - name: "address3"
       type: "STRING"
     - name: "city_village"
       type: "STRING"
@@ -62,6 +71,12 @@ sink:
     - name: "postal_code"
       type: "STRING"
     - name: "country"
+      type: "STRING"
+    - name: "county_district"
+      type: "STRING"
+    - name: "latitude"
+      type: "STRING"
+    - name: "longitude"
       type: "STRING"
 
 fieldMappings:
@@ -73,12 +88,13 @@ fieldMappings:
     - "birthdate_estimated"
     - "dead"
     - "death_date"
+    - "cause_of_death"
     - "creator"
     - "date_created"
     - "voided"
     - "uuid"
 
-  # Fields from person_name table (preferred name only)
+  # Fields from person_name table (preferred name)
   lookupFields:
     - column: "given_name"
       table: "person_name"
@@ -100,7 +116,17 @@ fieldMappings:
       field: "family_name2"
       joinField: "person_id"
 
-    # Fields from person_address table (preferred address only)
+    - column: "prefix"
+      table: "person_name"
+      field: "prefix"
+      joinField: "person_id"
+
+    - column: "suffix"
+      table: "person_name"
+      field: "family_name_suffix"
+      joinField: "person_id"
+
+    # Fields from person_address table (preferred address)
     - column: "address1"
       table: "person_address"
       field: "address1"
@@ -109,6 +135,11 @@ fieldMappings:
     - column: "address2"
       table: "person_address"
       field: "address2"
+      joinField: "person_id"
+
+    - column: "address3"
+      table: "person_address"
+      field: "address3"
       joinField: "person_id"
 
     - column: "city_village"
@@ -131,6 +162,21 @@ fieldMappings:
       field: "country"
       joinField: "person_id"
 
-  # Filter for non-voided persons only
+    - column: "county_district"
+      table: "person_address"
+      field: "county_district"
+      joinField: "person_id"
+
+    - column: "latitude"
+      table: "person_address"
+      field: "latitude"
+      joinField: "person_id"
+
+    - column: "longitude"
+      table: "person_address"
+      field: "longitude"
+      joinField: "person_id"
+
+  # Optional: Filter for non-voided persons only
   filters:
     - "voided = false"

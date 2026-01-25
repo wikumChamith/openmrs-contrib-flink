@@ -1,21 +1,19 @@
 connection:
-  jdbc: "jdbc:mysql://localhost:3306/openmrs"
+  jdbc: "jdbc:mysql://db:3306/openmrs"
   username: "openmrs"
   password: "openmrs"
 
 sourceTable: "encounter"
 
-# Include lookup tables for obs, location, and provider
 lookupTables:
   - "obs"
-  - "location"
-  - "provider"
+  - "person_name"
 
 sink:
-  jdbc: "jdbc:mysql://localhost:3306/flattened"
+  jdbc: "jdbc:mysql://db:3306/flattened"
   username: "openmrs"
   password: "openmrs"
-  table: "encounter_vitals_detailed"
+  table: "vitals_with_names"
   primaryKey:
     - "encounter_id"
   columns:
@@ -23,6 +21,10 @@ sink:
       type: "INT"
     - name: "patient_id"
       type: "INT"
+    - name: "patient_given_name"
+      type: "STRING"
+    - name: "patient_family_name"
+      type: "STRING"
     - name: "encounter_datetime"
       type: "TIMESTAMP(3)"
     - name: "systolic_bp"
@@ -31,23 +33,23 @@ sink:
       type: "DOUBLE"
     - name: "temperature_c"
       type: "DOUBLE"
-    - name: "location_name"
-      type: "STRING"
-    - name: "provider_name"
-      type: "STRING"
+    - name: "location_id"
+      type: "INT"
+    - name: "voided"
+      type: "BOOLEAN"
     - name: "uuid"
       type: "STRING"
 
-# Field Mappings with concept pivots AND lookup table joins
+# Field Mappings with patient name lookup
 fieldMappings:
-  # Direct fields from encounter table
   passthroughFields:
     - "encounter_id"
     - "patient_id"
     - "encounter_datetime"
+    - "location_id"
+    - "voided"
     - "uuid"
 
-  # EAV concept mappings from obs table
   conceptMappings:
     - column: "systolic_bp"
       conceptId: 2100
@@ -61,20 +63,19 @@ fieldMappings:
       conceptId: 2102
       valueType: "value_numeric"
 
-  # Lookup table field mappings
-  # These generate LEFT JOINs: e.{joinField} = {table}.{joinField}
   lookupFields:
-    - column: "location_name"
-      table: "location"
-      field: "name"
-      joinField: "location_id"
+    - column: "patient_given_name"
+      table: "person_name"
+      field: "given_name"
+      joinField: "patient_id"
+      lookupJoinField: "person_id"
 
-    - column: "provider_name"
-      table: "provider"
-      field: "name"
-      joinField: "provider_id"
+    - column: "patient_family_name"
+      table: "person_name"
+      field: "family_name"
+      joinField: "patient_id"
+      lookupJoinField: "person_id"
 
-  # Filters
   filters:
     - "encounter_type = 5"
     - "voided = false"

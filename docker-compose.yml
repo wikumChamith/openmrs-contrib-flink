@@ -1,7 +1,6 @@
 services:
   gateway:
     image: openmrs/openmrs-reference-application-3-gateway:nightly
-    restart: "unless-stopped"
     depends_on:
       - frontend
       - backend
@@ -10,7 +9,6 @@ services:
 
   frontend:
     image: openmrs/openmrs-reference-application-3-frontend:nightly
-    restart: "unless-stopped"
     environment:
       SPA_PATH: /openmrs/spa
       API_URL: /openmrs
@@ -24,7 +22,6 @@ services:
 
   backend:
     image: openmrs/openmrs-reference-application-3-backend:nightly
-    restart: "unless-stopped"
     depends_on:
       - db
     environment:
@@ -44,7 +41,6 @@ services:
   # MariaDB (OpenMRS source + flattened databases, CDC enabled)
   db:
     image: mariadb:10.11.7
-    restart: "unless-stopped"
     command: "mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --binlog-format=ROW --server-id=1 --log-bin=mysql-bin --binlog-do-db=openmrs"
     healthcheck:
       test: "mysql --user=${OMRS_DB_USER:-openmrs} --password=${OMRS_DB_PASSWORD:-openmrs} --execute \"SHOW DATABASES;\""
@@ -82,7 +78,6 @@ services:
 
   flink-app:
     build: .
-    restart: "unless-stopped"
     depends_on:
       app-db:
         condition: service_healthy

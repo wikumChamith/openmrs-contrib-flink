@@ -45,7 +45,6 @@ fieldMappings:
     - "patient_id"
     - "encounter_datetime"
 
-  # Uses conceptUuid instead of conceptId — resolved at job registration time
   conceptMappings:
     - column: "systolic_bp"
       conceptUuid: "5085AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
