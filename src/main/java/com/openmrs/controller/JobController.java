@@ -1,14 +1,11 @@
 package com.openmrs.controller;
 
 import com.openmrs.model.Job;
-import com.openmrs.repository.JobRepository;
 import com.openmrs.service.FlinkJobService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,18 +22,13 @@ public class JobController {
 
     private final FlinkJobService flinkJobService;
 
-    private final JobRepository jobRepository;
-
     /**
      * Get all jobs
-     *
-     * GET /api/jobs
      */
     @GetMapping
-    @Transactional
     public ResponseEntity<List<Job>> getAllJobs() {
         try {
-            List<Job> jobs = jobRepository.findAll();
+            List<Job> jobs = flinkJobService.getAllJobs();
             return ResponseEntity.ok(jobs);
         } catch (Exception e) {
             log.error("Error retrieving jobs", e);
@@ -46,8 +38,6 @@ public class JobController {
 
     /**
      * Upload YAML file to register a new Flink CDC ETL job
-     *
-     * POST /api/jobs/upload
      */
     @PostMapping("/upload")
     public ResponseEntity<?> uploadYamlFile(@RequestParam("file") MultipartFile file) {
@@ -84,8 +74,32 @@ public class JobController {
     }
 
     /**
-     * Helper method to create error response
+     * Delete a job by ID
      */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteJob(@PathVariable Integer id) {
+        try {
+            if (!flinkJobService.existsById(id)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(createErrorResponse("Job not found with ID: " + id));
+            }
+
+            flinkJobService.deleteJob(id);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Job deleted successfully");
+            response.put("jobId", id);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Error deleting job with ID: {}", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Failed to delete job: " + e.getMessage()));
+        }
+    }
+
     private Map<String, Object> createErrorResponse(String message) {
         Map<String, Object> response = new HashMap<>();
         response.put("success", false);

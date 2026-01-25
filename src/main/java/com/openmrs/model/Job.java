@@ -31,4 +31,7 @@ public class Job {
 
     @Embedded
     private FieldMappings fieldMappings;
+
+    @Column(name = "flink_job_id")
+    private String flinkJobId;
 }

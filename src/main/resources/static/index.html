@@ -229,6 +229,35 @@
             color: #22543d;
         }
 
+        .job-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-delete {
+            background: #fc8181;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-delete:hover {
+            background: #f56565;
+            transform: translateY(-1px);
+        }
+
+        .btn-delete:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .footer {
             margin-top: 30px;
             text-align: center;
@@ -367,7 +396,7 @@
 
                 if (jobs && jobs.length > 0) {
                     jobList.innerHTML = jobs.map(job => `
-                        <li class="job-item">
+                        <li class="job-item" data-job-id="${job.id}">
                             <div class="job-info">
                                 <div class="job-name">${job.sink?.sinkTable || 'Unknown'}</div>
                                 <div class="job-details">
@@ -375,7 +404,10 @@
                                     Sink: ${job.sink?.sinkJdbc?.match(/\/\/([^\/]+)/)?.[1] || 'N/A'}
                                 </div>
                             </div>
-                            <div class="job-status status-running">Running</div>
+                            <div class="job-actions">
+                                <div class="job-status status-running">Running</div>
+                                <button class="btn-delete" onclick="deleteJob(${job.id}, '${job.sink?.sinkTable || 'this job'}')">Delete</button>
+                            </div>
                         </li>
                     `).join('');
                 } else {
@@ -383,6 +415,30 @@
                 }
             } catch (error) {
                 console.error('Failed to load jobs:', error);
+            }
+        }
+
+        // Delete job
+        async function deleteJob(jobId, jobName) {
+            if (!confirm(`Are you sure you want to delete the job "${jobName}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/jobs/${jobId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('Job deleted successfully!', 'success');
+                    loadJobs();
+                } else {
+                    showAlert(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert('Failed to delete job. Please try again.', 'error');
             }
         }
 

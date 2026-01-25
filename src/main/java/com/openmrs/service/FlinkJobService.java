@@ -5,9 +5,10 @@ import com.openmrs.repository.JobRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.yaml.snakeyaml.Yaml;
 
 import java.sql.Connection;
@@ -30,10 +31,13 @@ public class FlinkJobService {
 
     private final FieldMappingSqlGenerator fieldMappingSqlGenerator;
 
+    private final JobClientRegistry jobClientRegistry;
+
     /**
      * Registers a Flink job from YAML content
      * Flow: Parse YAML → Extract DB metadata → Register Flink job → Save to DB
      */
+    @Transactional
     public Job registerJobFromYaml(String yamlContent) throws Exception {
         log.info("Starting job registration from YAML");
 
@@ -75,12 +79,14 @@ public class FlinkJobService {
         String sinkDDL = ddlGenerator.generateSinkTableDDL(job.getSink());
         log.debug("Sink DDL:\n{}", sinkDDL);
 
-        log.info("Registering Flink job");
-        registerFlinkJob(job, sourceDDL, lookupDDLs, sinkDDL);
-
+        // Save job first to get the ID for registry
         log.info("Saving job to database");
         Job savedJob = jobRepository.save(job);
         log.info("Job saved successfully with ID: {}", savedJob.getId());
+
+        // Start Flink job and register with client registry
+        log.info("Registering Flink job");
+        registerFlinkJob(savedJob, sourceDDL, lookupDDLs, sinkDDL);
 
         return savedJob;
     }
@@ -335,8 +341,55 @@ public class FlinkJobService {
 
         log.info("Executing transformation SQL");
         log.debug("Insert SQL:\n{}", insertSQL);
-        tEnv.executeSql(insertSQL);
+        TableResult result = tEnv.executeSql(insertSQL);
+
+        // Capture JobClient and register with registry for later cancellation
+        result.getJobClient().ifPresent(client -> {
+            String flinkJobId = client.getJobID().toString();
+            job.setFlinkJobId(flinkJobId);
+            jobClientRegistry.register(job.getId(), client);
+            log.info("Flink job started with JobID: {}", flinkJobId);
+        });
 
         log.info("Flink job registered and started successfully");
+    }
+
+    /**
+     * Gets all jobs
+     */
+    @Transactional(readOnly = true)
+    public List<Job> getAllJobs() {
+        return jobRepository.findAll();
+    }
+
+    /**
+     * Checks if a job exists by ID
+     */
+    @Transactional(readOnly = true)
+    public boolean existsById(Integer jobId) {
+        return jobRepository.existsById(jobId);
+    }
+
+    /**
+     * Deletes a job by ID (stops Flink job first, then removes from database)
+     */
+    @Transactional
+    public void deleteJob(Integer jobId) {
+        Job job = jobRepository.findById(jobId)
+            .orElseThrow(() -> new IllegalArgumentException("Job not found with ID: " + jobId));
+
+        // Stop the Flink job first
+        stopFlinkJob(job);
+
+        // Delete from database
+        jobRepository.deleteById(jobId);
+        log.info("Deleted job with ID: {}", jobId);
+    }
+
+    /**
+     * Stops a running Flink job using the registry
+     */
+    private void stopFlinkJob(Job job) {
+        jobClientRegistry.cancel(job.getId());
     }
 }

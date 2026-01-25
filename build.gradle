@@ -18,11 +18,6 @@ configurations {
     compileOnly {
         extendsFrom annotationProcessor
     }
-    all {
-        resolutionStrategy {
-            force 'org.antlr:antlr4-runtime:4.8'
-        }
-    }
 }
 
 repositories {
@@ -43,9 +38,6 @@ dependencies {
     implementation 'org.apache.flink:flink-clients:1.19.0'
     implementation 'org.apache.flink:flink-connector-base:1.19.0'
     implementation 'org.apache.flink:flink-runtime:1.19.0'
-
-    // Force ANTLR 4.8 to match Debezium's compiled version (forced via resolutionStrategy)
-    implementation 'org.antlr:antlr4-runtime:4.8'
 
     // Flink CDC Connectors
     implementation 'com.ververica:flink-connector-mysql-cdc:3.0.1'
