@@ -31,11 +31,14 @@ This starts:
 
 Open [http://localhost:8081](http://localhost:8081) in your browser.
 
+Default login credentials: `admin` / `admin123` (change immediately after first login).
+
 From the UI you can:
 - Upload and submit job YAML files
 - View running jobs and their status
 - Stop or delete jobs
 - Manage secrets for secure credential storage
+- Manage users and assign roles (Admin only)
 
 ---
 
@@ -60,14 +63,49 @@ sink:             # Target table definition
 fieldMappings:    # OR sql: - transformation logic
 ```
 
+### Authentication & Roles
+
+All API endpoints require JWT authentication. Obtain a token by logging in:
+
+```bash
+curl -X POST http://localhost:8081/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin123"}'
+```
+
+Include the token in subsequent requests:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:8081/api/jobs
+```
+
+Three roles control access:
+
+| Permission | VIEWER | OPERATOR | ADMIN |
+|---|---|---|---|
+| View jobs | Yes | Yes | Yes |
+| Create/delete jobs | No | Yes | Yes |
+| Manage secrets | No | No | Yes |
+| Manage users | No | No | Yes |
+
+Default credentials and JWT secret can be overridden via environment variables:
+
+| Variable | Description | Default |
+|---|---|---|
+| `ADMIN_USERNAME` | Default admin username | `admin` |
+| `ADMIN_PASSWORD` | Default admin password | `admin123` |
+| `JWT_SECRET` | Base64-encoded signing key | dev key |
+| `JWT_EXPIRATION` | Token expiry in ms | `86400000` (24h) |
+
 ### Secrets
 
 Credentials can be stored as named secrets and referenced in YAML configs instead of hardcoding plaintext passwords. Secrets are encrypted at rest (AES-256-GCM) and never exposed via the API.
 
-**1. Create a secret** (via API or UI):
+**1. Create a secret** (via API or UI, requires ADMIN role):
 
 ```bash
 curl -X POST http://localhost:8081/api/secrets \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"name": "OPENMRS_DB_PASSWORD", "value": "openmrs"}'
 ```
@@ -280,11 +318,15 @@ See [`src/main/resources/sample/`](src/main/resources/sample/) for examples:
 
 ## API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/jobs/upload` | Upload YAML job config (multipart file) |
-| GET | `/api/jobs` | List all jobs (passwords masked) |
-| DELETE | `/api/jobs/{id}` | Stop and remove job |
-| POST | `/api/secrets` | Create or update a secret |
-| GET | `/api/secrets` | List secret names (values never exposed) |
-| DELETE | `/api/secrets/{name}` | Delete a secret |
+| Method | Endpoint | Description | Minimum Role |
+|--------|----------|-------------|--------------|
+| POST | `/api/auth/login` | Authenticate and get JWT token | Public |
+| GET | `/api/jobs` | List all jobs (passwords masked) | VIEWER |
+| POST | `/api/jobs/upload` | Upload YAML job config (multipart file) | OPERATOR |
+| DELETE | `/api/jobs/{id}` | Stop and remove job | OPERATOR |
+| GET | `/api/secrets` | List secret names (values never exposed) | ADMIN |
+| POST | `/api/secrets` | Create or update a secret | ADMIN |
+| DELETE | `/api/secrets/{name}` | Delete a secret | ADMIN |
+| GET | `/api/users` | List all users | ADMIN |
+| POST | `/api/users` | Create a new user | ADMIN |
+| DELETE | `/api/users/{id}` | Delete a user | ADMIN |
