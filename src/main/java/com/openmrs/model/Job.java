@@ -3,6 +3,8 @@ package com.openmrs.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -34,4 +36,7 @@ public class Job {
 
     @Column(name = "flink_job_id")
     private String flinkJobId;
+
+    @Transient
+    private List<String> warnings;
 }

@@ -33,9 +33,14 @@ public class FlinkJobService {
 
     private final JobClientRegistry jobClientRegistry;
 
+    private final SecretService secretService;
+
     /**
      * Registers a Flink job from YAML content
-     * Flow: Parse YAML → Extract DB metadata → Register Flink job → Save to DB
+     * Flow: Parse YAML → Resolve secrets → Extract DB metadata → Register Flink job → Save to DB
+     *
+     * The Job entity stores secret references (${{ secrets.NAME }}) as-is.
+     * Resolved copies of SourceInfo/SinkInfo are used for runtime DB operations.
      */
     @Transactional
     public Job registerJobFromYaml(String yamlContent) throws Exception {
@@ -44,7 +49,11 @@ public class FlinkJobService {
         Job job = parseYaml(yamlContent);
         log.info("Parsed YAML successfully for table: {}", job.getSource().getSourceTable());
 
-        resolveConceptUuids(job);
+        // Create resolved copies for runtime use; the job entity retains secret references
+        SourceInfo resolvedSource = resolveSourceSecrets(job.getSource());
+        SinkInfo resolvedSink = resolveSinkSecrets(job.getSink());
+
+        resolveConceptUuids(job, resolvedSource);
 
         String sinkTable = job.getSink().getSinkTable();
         List<Job> existingJobs = jobRepository.findBySink_SinkTable(sinkTable);
@@ -59,24 +68,24 @@ public class FlinkJobService {
         log.info("Validation passed: sink table '{}' is available", sinkTable);
 
         log.info("Generating DDL for source table: {}", job.getSource().getSourceTable());
-        String sourceDDL = ddlGenerator.generateSourceTableDDL(job.getSource());
+        String sourceDDL = ddlGenerator.generateSourceTableDDL(resolvedSource);
         log.debug("Source DDL:\n{}", sourceDDL);
 
         List<String> lookupDDLs = new ArrayList<>();
         if (job.getSource().getSourceLookupTables() != null) {
             for (String lookupTable : job.getSource().getSourceLookupTables()) {
                 log.info("Generating DDL for lookup table: {}", lookupTable);
-                String lookupDDL = ddlGenerator.generateLookupTableDDL(job.getSource(), lookupTable);
+                String lookupDDL = ddlGenerator.generateLookupTableDDL(resolvedSource, lookupTable);
                 lookupDDLs.add(lookupDDL);
                 log.debug("Lookup DDL for {}:\n{}", lookupTable, lookupDDL);
             }
         }
 
         log.info("Creating physical sink table: {}", job.getSink().getSinkTable());
-        ddlGenerator.createPhysicalSinkTable(job.getSink());
+        ddlGenerator.createPhysicalSinkTable(resolvedSink);
 
         log.info("Generating DDL for sink table: {}", job.getSink().getSinkTable());
-        String sinkDDL = ddlGenerator.generateSinkTableDDL(job.getSink());
+        String sinkDDL = ddlGenerator.generateSinkTableDDL(resolvedSink);
         log.debug("Sink DDL:\n{}", sinkDDL);
 
         // Save job first to get the ID for registry
@@ -88,7 +97,40 @@ public class FlinkJobService {
         log.info("Registering Flink job");
         registerFlinkJob(savedJob, sourceDDL, lookupDDLs, sinkDDL);
 
+        // Check for plaintext credentials and return warnings
+        List<String> warnings = checkPlaintextCredentials(job);
+        savedJob.setWarnings(warnings);
+
         return savedJob;
+    }
+
+    /**
+     * Returns warnings if the job uses plaintext credentials instead of secret references.
+     */
+    private List<String> checkPlaintextCredentials(Job job) {
+        List<String> warnings = new ArrayList<>();
+
+        if (job.getSource() != null) {
+            if (job.getSource().getSourcePassword() != null && !secretService.containsSecretRef(job.getSource().getSourcePassword())) {
+                warnings.add("Source connection password is stored as plaintext. Consider using a secret reference.");
+            }
+            if (job.getSource().getSourceUsername() != null && !secretService.containsSecretRef(job.getSource().getSourceUsername())) {
+                warnings.add("Source connection username is stored as plaintext. Consider using a secret reference.");
+            }
+        }
+        if (job.getSink() != null) {
+            if (job.getSink().getSinkPassword() != null && !secretService.containsSecretRef(job.getSink().getSinkPassword())) {
+                warnings.add("Sink connection password is stored as plaintext. Consider using a secret reference.");
+            }
+            if (job.getSink().getSinkUsername() != null && !secretService.containsSecretRef(job.getSink().getSinkUsername())) {
+                warnings.add("Sink connection username is stored as plaintext. Consider using a secret reference.");
+            }
+        }
+
+        if (!warnings.isEmpty()) {
+            log.warn("Job ID {} has plaintext credentials: {}", job.getId(), warnings);
+        }
+        return warnings;
     }
 
     /**
@@ -229,10 +271,38 @@ public class FlinkJobService {
     }
 
     /**
+     * Creates a copy of SourceInfo with all secret references resolved to actual values.
+     */
+    private SourceInfo resolveSourceSecrets(SourceInfo source) {
+        SourceInfo resolved = new SourceInfo();
+        resolved.setSourceJdbc(secretService.resolveSecrets(source.getSourceJdbc()));
+        resolved.setSourceUsername(secretService.resolveSecrets(source.getSourceUsername()));
+        resolved.setSourcePassword(secretService.resolveSecrets(source.getSourcePassword()));
+        resolved.setSourceTable(source.getSourceTable());
+        resolved.setSourceLookupTables(source.getSourceLookupTables());
+        resolved.setScanStartupMode(source.getScanStartupMode());
+        return resolved;
+    }
+
+    /**
+     * Creates a copy of SinkInfo with all secret references resolved to actual values.
+     */
+    private SinkInfo resolveSinkSecrets(SinkInfo sink) {
+        SinkInfo resolved = new SinkInfo();
+        resolved.setSinkJdbc(secretService.resolveSecrets(sink.getSinkJdbc()));
+        resolved.setSinkUsername(secretService.resolveSecrets(sink.getSinkUsername()));
+        resolved.setSinkPassword(secretService.resolveSecrets(sink.getSinkPassword()));
+        resolved.setSinkTable(sink.getSinkTable());
+        resolved.setSinkPrimaryKey(sink.getSinkPrimaryKey());
+        resolved.setSinkColumns(sink.getSinkColumns());
+        return resolved;
+    }
+
+    /**
      * Resolves conceptUuid values to conceptId by querying the source database.
      * Only applies when fieldMappings with conceptMappings using conceptUuid are present.
      */
-    private void resolveConceptUuids(Job job) {
+    private void resolveConceptUuids(Job job, SourceInfo resolvedSource) {
         if (job.getFieldMappings() == null || job.getFieldMappings().getConceptMappings() == null) {
             return;
         }
@@ -257,10 +327,9 @@ public class FlinkJobService {
             return;
         }
 
-        SourceInfo source = job.getSource();
-        String jdbcUrl = source.getSourceJdbc();
-        String username = source.getSourceUsername();
-        String password = source.getSourcePassword();
+        String jdbcUrl = resolvedSource.getSourceJdbc();
+        String username = resolvedSource.getSourceUsername();
+        String password = resolvedSource.getSourcePassword();
 
         log.info("Resolving {} conceptUuid(s) against source database", mappingsToResolve.size());
 

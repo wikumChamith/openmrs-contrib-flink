@@ -40,14 +40,17 @@ dependencies {
     implementation 'org.apache.flink:flink-runtime:1.19.0'
 
     // Flink CDC Connectors
-    implementation 'com.ververica:flink-connector-mysql-cdc:3.0.1'
+    implementation 'com.ververica:flink-sql-connector-mysql-cdc:3.0.1'
+
+    // Jackson JAXB module (required by shaded CDC connector's ServiceLoader registration)
+    implementation 'com.fasterxml.jackson.module:jackson-module-jaxb-annotations'
 
     // Flink JDBC Connector
     implementation 'org.apache.flink:flink-connector-jdbc:3.2.0-1.19'
 
     // Database Drivers
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
-    runtimeOnly 'com.mysql:mysql-connector-j:8.0.33'
+    runtimeOnly 'com.mysql:mysql-connector-j:9.3.0'
 
     // YAML Parser
     implementation 'org.yaml:snakeyaml:2.2'

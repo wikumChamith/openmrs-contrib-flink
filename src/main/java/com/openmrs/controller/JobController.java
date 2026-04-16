@@ -23,16 +23,26 @@ public class JobController {
     private final FlinkJobService flinkJobService;
 
     /**
-     * Get all jobs
+     * Get all jobs (passwords are masked in response)
      */
     @GetMapping
     public ResponseEntity<List<Job>> getAllJobs() {
         try {
             List<Job> jobs = flinkJobService.getAllJobs();
+            jobs.forEach(this::maskPasswords);
             return ResponseEntity.ok(jobs);
         } catch (Exception e) {
             log.error("Error retrieving jobs", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    private void maskPasswords(Job job) {
+        if (job.getSource() != null && job.getSource().getSourcePassword() != null) {
+            job.getSource().setSourcePassword("******");
+        }
+        if (job.getSink() != null && job.getSink().getSinkPassword() != null) {
+            job.getSink().setSinkPassword("******");
         }
     }
 
@@ -63,6 +73,10 @@ public class JobController {
             response.put("jobId", job.getId());
             response.put("sourceTable", job.getSource().getSourceTable());
             response.put("sinkTable", job.getSink().getSinkTable());
+
+            if (job.getWarnings() != null && !job.getWarnings().isEmpty()) {
+                response.put("warnings", job.getWarnings());
+            }
 
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
 

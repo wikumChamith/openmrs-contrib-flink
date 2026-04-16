@@ -1,13 +1,14 @@
 package com.openmrs.service;
 
 import com.openmrs.model.Job;
+import com.openmrs.model.SinkInfo;
+import com.openmrs.model.SourceInfo;
 import com.openmrs.model.TableColumn;
 import com.openmrs.repository.JobRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -26,6 +27,8 @@ public class JobStartupRunner implements ApplicationRunner {
     private final DDLGenerator ddlGenerator;
 
     private final FieldMappingSqlGenerator fieldMappingSqlGenerator;
+
+    private final SecretService secretService;
 
     @Override
     @Transactional
@@ -56,26 +59,52 @@ public class JobStartupRunner implements ApplicationRunner {
     }
 
     private void restoreJob(Job job) throws Exception {
+        // Resolve secret references to actual values for runtime use
+        SourceInfo resolvedSource = resolveSourceSecrets(job.getSource());
+        SinkInfo resolvedSink = resolveSinkSecrets(job.getSink());
+
         log.debug("Generating DDL for source table: {}", job.getSource().getSourceTable());
-        String sourceDDL = ddlGenerator.generateSourceTableDDL(job.getSource());
+        String sourceDDL = ddlGenerator.generateSourceTableDDL(resolvedSource);
 
         List<String> lookupDDLs = new ArrayList<>();
         if (job.getSource().getSourceLookupTables() != null) {
             for (String lookupTable : job.getSource().getSourceLookupTables()) {
                 log.debug("Generating DDL for lookup table: {}", lookupTable);
-                String lookupDDL = ddlGenerator.generateLookupTableDDL(job.getSource(), lookupTable);
+                String lookupDDL = ddlGenerator.generateLookupTableDDL(resolvedSource, lookupTable);
                 lookupDDLs.add(lookupDDL);
             }
         }
 
         log.debug("Ensuring physical sink table exists: {}", job.getSink().getSinkTable());
-        ddlGenerator.createPhysicalSinkTable(job.getSink());
+        ddlGenerator.createPhysicalSinkTable(resolvedSink);
 
         log.debug("Generating DDL for sink table: {}", job.getSink().getSinkTable());
-        String sinkDDL = ddlGenerator.generateSinkTableDDL(job.getSink());
+        String sinkDDL = ddlGenerator.generateSinkTableDDL(resolvedSink);
 
         log.debug("Registering Flink job for source table: {}", job.getSource().getSourceTable());
         registerFlinkJob(job, sourceDDL, lookupDDLs, sinkDDL);
+    }
+
+    private SourceInfo resolveSourceSecrets(SourceInfo source) {
+        SourceInfo resolved = new SourceInfo();
+        resolved.setSourceJdbc(secretService.resolveSecrets(source.getSourceJdbc()));
+        resolved.setSourceUsername(secretService.resolveSecrets(source.getSourceUsername()));
+        resolved.setSourcePassword(secretService.resolveSecrets(source.getSourcePassword()));
+        resolved.setSourceTable(source.getSourceTable());
+        resolved.setSourceLookupTables(source.getSourceLookupTables());
+        resolved.setScanStartupMode(source.getScanStartupMode());
+        return resolved;
+    }
+
+    private SinkInfo resolveSinkSecrets(SinkInfo sink) {
+        SinkInfo resolved = new SinkInfo();
+        resolved.setSinkJdbc(secretService.resolveSecrets(sink.getSinkJdbc()));
+        resolved.setSinkUsername(secretService.resolveSecrets(sink.getSinkUsername()));
+        resolved.setSinkPassword(secretService.resolveSecrets(sink.getSinkPassword()));
+        resolved.setSinkTable(sink.getSinkTable());
+        resolved.setSinkPrimaryKey(sink.getSinkPrimaryKey());
+        resolved.setSinkColumns(sink.getSinkColumns());
+        return resolved;
     }
 
     private void registerFlinkJob(Job job, String sourceDDL,

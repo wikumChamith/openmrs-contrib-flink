@@ -1,6 +1,6 @@
 services:
   gateway:
-    image: openmrs/openmrs-reference-application-3-gateway:nightly
+    image: openmrs/openmrs-reference-application-3-gateway:3.5.0
     depends_on:
       - frontend
       - backend
@@ -8,7 +8,7 @@ services:
       - "80:80"
 
   frontend:
-    image: openmrs/openmrs-reference-application-3-frontend:nightly
+    image: openmrs/openmrs-reference-application-3-frontend:3.5.0
     environment:
       SPA_PATH: /openmrs/spa
       API_URL: /openmrs
@@ -21,7 +21,7 @@ services:
       - backend
 
   backend:
-    image: openmrs/openmrs-reference-application-3-backend:nightly
+    image: openmrs/openmrs-reference-application-3-backend:3.5.0
     depends_on:
       - db
     environment:
@@ -81,10 +81,13 @@ services:
     depends_on:
       app-db:
         condition: service_healthy
+      db:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://app-db:3306/openmrs_flink
       SPRING_DATASOURCE_USERNAME: flink_user
       SPRING_DATASOURCE_PASSWORD: flink_pass
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:-HdF3lssbjZz2Is7KXLs9mx9O6l+iW/tOFEaPF/4AGBI=}
     ports:
       - "8081:8081"
 

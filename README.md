@@ -34,8 +34,8 @@ Open [http://localhost:8081](http://localhost:8081) in your browser.
 From the UI you can:
 - Upload and submit job YAML files
 - View running jobs and their status
-- Monitor job metrics
 - Stop or delete jobs
+- Manage secrets for secure credential storage
 
 ---
 
@@ -59,6 +59,29 @@ lookupTables:     # Tables to join (optional)
 sink:             # Target table definition
 fieldMappings:    # OR sql: - transformation logic
 ```
+
+### Secrets
+
+Credentials can be stored as named secrets and referenced in YAML configs instead of hardcoding plaintext passwords. Secrets are encrypted at rest (AES-256-GCM) and never exposed via the API.
+
+**1. Create a secret** (via API or UI):
+
+```bash
+curl -X POST http://localhost:8081/api/secrets \
+  -H "Content-Type: application/json" \
+  -d '{"name": "OPENMRS_DB_PASSWORD", "value": "openmrs"}'
+```
+
+**2. Reference it in your YAML:**
+
+```yaml
+connection:
+  jdbc: "jdbc:mysql://db:3306/openmrs"
+  username: "${{ secrets.OPENMRS_DB_USERNAME }}"
+  password: "${{ secrets.OPENMRS_DB_PASSWORD }}"
+```
+
+Jobs uploaded with plaintext credentials will display a warning suggesting the use of secret references. See [`vitals-with-secrets.yaml`](src/main/resources/sample/vitals-with-secrets.yaml) for a full example.
 
 ---
 
@@ -251,6 +274,7 @@ See [`src/main/resources/sample/`](src/main/resources/sample/) for examples:
 | [vitals-manual-sql.yaml](src/main/resources/sample/vitals-manual-sql.yaml) | Vitals using manual SQL |
 | [patient-demographics.yaml](src/main/resources/sample/patient-demographics.yaml) | Patient with name and address |
 | [encounter-vitals-with-location.yaml](src/main/resources/sample/encounter-vitals-with-location.yaml) | Encounters with location lookup |
+| [vitals-with-secrets.yaml](src/main/resources/sample/vitals-with-secrets.yaml) | Vitals using secret references |
 
 ---
 
@@ -258,7 +282,9 @@ See [`src/main/resources/sample/`](src/main/resources/sample/) for examples:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/jobs/submit` | Submit new job (multipart file) |
-| GET | `/api/jobs` | List all jobs |
-| GET | `/api/jobs/{id}` | Get job details |
+| POST | `/api/jobs/upload` | Upload YAML job config (multipart file) |
+| GET | `/api/jobs` | List all jobs (passwords masked) |
 | DELETE | `/api/jobs/{id}` | Stop and remove job |
+| POST | `/api/secrets` | Create or update a secret |
+| GET | `/api/secrets` | List secret names (values never exposed) |
+| DELETE | `/api/secrets/{name}` | Delete a secret |
