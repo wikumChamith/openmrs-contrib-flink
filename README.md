@@ -1,5 +1,8 @@
 # OpenMRS Flink ETL
 
+> ⚠️ **Warning: Under active development, do not use in production.**
+> This project is a work in progress and has not been hardened for production use. Expect breaking changes, missing operational features, and security gaps. Use for evaluation, development, and research only.
+
 A real-time ETL tool that flattens OpenMRS EAV (Entity-Attribute-Value) data into analytics-ready tables using Apache Flink CDC.
 
 ## What It Does
